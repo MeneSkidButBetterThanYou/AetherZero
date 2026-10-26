@@ -43119,8 +43119,8 @@ local function __A0Initialize()
 	end
 	__A0Boot:Budget()
 	RunService:BindToRenderStep("VD_Aimbot", Enum["RenderPriority"]["Camera"]["Value"] + 1, runAimbot)
-	__A0Boot:Budget()
-	do
+	__A0Boot:Budget();
+	(function()
 		local Number8 = 0
 		local ValueLocal40 = false
 		local ValueLocal41 = nil
@@ -43866,7 +43866,7 @@ local function __A0Initialize()
 				end
 			end
 		end))
-	end
+	end)()
 	__A0Boot:Budget();
 	(function()
 		local ValueLocal40 = nil
@@ -48232,8 +48232,8 @@ local function __A0Initialize()
 		end)
 	end)()
 
-	__A0Boot:Budget()
-	do
+	__A0Boot:Budget();
+	(function()
 		local Travel = __tabFor(tabMisc):Section("Travel Utilities", 1)
 		local DistanceLocal = 120
 		local BusyLocal = false
@@ -48315,9 +48315,9 @@ local function __A0Initialize()
 				end
 			end,
 		})
-	end
-
-	do
+	end)()
+;
+	(function()
 		local function AliveLocal()
 			return ActiveLoop and not UiLibrary.Destroyed and not __A0Boot.Cancelled
 		end
@@ -48673,9 +48673,9 @@ local function __A0Initialize()
 				task.wait(0.5)
 			end
 		end)
-	end
-
-	do
+	end)()
+;
+	(function()
 		local AliveLocal = function()
 			return ActiveLoop and not UiLibrary.Destroyed and not __A0Boot.Cancelled
 		end
@@ -49186,7 +49186,7 @@ local function __A0Initialize()
 				removeModelESP(Object, "BearTrap")
 			end
 		end)
-	end
+	end)()
 
 	__A0Boot:Phase("Preparing search and final layout…")
 	__A0Boot:Budget()
