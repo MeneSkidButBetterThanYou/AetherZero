@@ -12792,6 +12792,43 @@ local function A0LoadInterface(GameName, Dependencies)
 	return Interface
 end
 
+local A0ESPPalette = {
+	Killer = Color3.fromRGB(255, 70, 70),
+	Hook = Color3.fromRGB(255, 70, 70),
+	SurvivorHealthy = Color3.fromRGB(75, 220, 120),
+	SurvivorInjured = Color3.fromRGB(65, 200, 105),
+	SurvivorKnocked = Color3.fromRGB(55, 180, 95),
+	Generator = Color3.fromRGB(255, 235, 145),
+	Pallet = Color3.fromRGB(255, 155, 55),
+	Vault = Color3.fromRGB(255, 155, 55),
+	Gate = Color3.fromRGB(255, 195, 125),
+	Me = Color3.fromRGB(75, 220, 120),
+}
+local function A0IsWhiteESP(Value)
+	return typeof(Value) == "Color3" and Value.R > 0.998 and Value.G > 0.998 and Value.B > 0.998
+end
+local function A0NormalizeESPColors(Settings, Startup)
+	if type(Settings.ESPColors) ~= "table" then
+		Settings.ESPColors = {}
+	end
+	local Migrate = Startup or (tonumber(Settings.ESPColorPaletteVersion) or 0) < 1
+	for Key, Default in pairs(A0ESPPalette) do
+		local Current = Settings.ESPColors[Key]
+		if typeof(Current) ~= "Color3" or (Migrate and A0IsWhiteESP(Current)) then
+			Settings.ESPColors[Key] = Default
+		end
+	end
+	if Migrate then
+		for _, Part in ipairs({ "Text", "Fill", "Outline" }) do
+			local ModeKey = "ESP" .. Part .. "ColorMode"
+			if Settings[ModeKey] == "Custom" and A0IsWhiteESP(Settings["ESP" .. Part .. "Color"]) then
+				Settings[ModeKey] = "Role Color"
+			end
+		end
+	end
+	Settings.ESPColorPaletteVersion = 1
+end
+
 local __A0MovementFilter = {}
 function __A0MovementFilter.Normalize(ValueLocal)
 	local KeyLocal = tostring(ValueLocal or "Both"):lower():gsub("%s+", "")
@@ -14691,19 +14728,19 @@ local function __A0Initialize()
 			["NoText"] = false,
 		},
 		["ESPColors"] = {
-			["Killer"] = Color3["fromRGB"](255, 255, 255),
-			["SurvivorHealthy"] = Color3["fromRGB"](255, 255, 255),
-			["SurvivorInjured"] = Color3["fromRGB"](255, 255, 255),
-			["SurvivorKnocked"] = Color3["fromRGB"](255, 255, 255),
-			["Generator"] = Color3["fromRGB"](255, 255, 255),
-			["Hook"] = Color3["fromRGB"](255, 255, 255),
-			["Pallet"] = Color3["fromRGB"](255, 255, 255),
-			["Vault"] = Color3["fromRGB"](255, 255, 255),
+			["Killer"] = Color3["fromRGB"](255, 70, 70),
+			["SurvivorHealthy"] = Color3["fromRGB"](75, 220, 120),
+			["SurvivorInjured"] = Color3["fromRGB"](65, 200, 105),
+			["SurvivorKnocked"] = Color3["fromRGB"](55, 180, 95),
+			["Generator"] = Color3["fromRGB"](255, 235, 145),
+			["Hook"] = Color3["fromRGB"](255, 70, 70),
+			["Pallet"] = Color3["fromRGB"](255, 155, 55),
+			["Vault"] = Color3["fromRGB"](255, 155, 55),
 			["BloodEffect"] = Color3["fromRGB"](180, 0, 0),
-			["Gate"] = Color3["fromRGB"](255, 255, 255),
+			["Gate"] = Color3["fromRGB"](255, 195, 125),
 			["SCP"] = Color3["fromRGB"](150, 0, 255),
 			["Tracer"] = Color3["fromRGB"](255, 255, 255),
-			["Me"] = Color3["fromRGB"](255, 255, 255),
+			["Me"] = Color3["fromRGB"](75, 220, 120),
 		},
 		["VaultSpeed"] = 1,
 		["AlwaysFastVault"] = false,
@@ -15122,6 +15159,7 @@ local function __A0Initialize()
 	end
 
 	function normalizeSettings()
+		A0NormalizeESPColors(SettingsLocal1, __A0Boot.Running)
 		FillMissing(SettingsLocal1, {
 			FakeVault = false,
 			AutoPumpkin = false,
@@ -15646,35 +15684,35 @@ local function __A0Initialize()
 			})
 			if not SettingsLocal1["ESPColors"] then
 				SettingsLocal1["ESPColors"] = {
-					["Killer"] = Color3["fromRGB"](255, 255, 255),
-					["SurvivorHealthy"] = Color3["fromRGB"](255, 255, 255),
-					["SurvivorInjured"] = Color3["fromRGB"](255, 255, 255),
-					["SurvivorKnocked"] = Color3["fromRGB"](255, 255, 255),
-					["Generator"] = Color3["fromRGB"](255, 255, 255),
-					["Hook"] = Color3["fromRGB"](255, 255, 255),
-					["Pallet"] = Color3["fromRGB"](255, 255, 255),
-					["Vault"] = Color3["fromRGB"](255, 255, 255),
+					["Killer"] = Color3["fromRGB"](255, 70, 70),
+					["SurvivorHealthy"] = Color3["fromRGB"](75, 220, 120),
+					["SurvivorInjured"] = Color3["fromRGB"](65, 200, 105),
+					["SurvivorKnocked"] = Color3["fromRGB"](55, 180, 95),
+					["Generator"] = Color3["fromRGB"](255, 235, 145),
+					["Hook"] = Color3["fromRGB"](255, 70, 70),
+					["Pallet"] = Color3["fromRGB"](255, 155, 55),
+					["Vault"] = Color3["fromRGB"](255, 155, 55),
 					["BloodEffect"] = Color3["fromRGB"](180, 0, 0),
-					["Gate"] = Color3["fromRGB"](255, 255, 255),
+					["Gate"] = Color3["fromRGB"](255, 195, 125),
 					["SCP"] = Color3["fromRGB"](150, 0, 255),
 					["Tracer"] = Color3["fromRGB"](255, 255, 255),
-					["Me"] = Color3["fromRGB"](255, 255, 255),
+					["Me"] = Color3["fromRGB"](75, 220, 120),
 				}
 			else
 				local Values16 = {
-					["Killer"] = Color3["fromRGB"](255, 255, 255),
-					["SurvivorHealthy"] = Color3["fromRGB"](255, 255, 255),
-					["SurvivorInjured"] = Color3["fromRGB"](255, 255, 255),
-					["SurvivorKnocked"] = Color3["fromRGB"](255, 255, 255),
-					["Generator"] = Color3["fromRGB"](255, 255, 255),
-					["Hook"] = Color3["fromRGB"](255, 255, 255),
-					["Pallet"] = Color3["fromRGB"](255, 255, 255),
-					["Vault"] = Color3["fromRGB"](255, 255, 255),
+					["Killer"] = Color3["fromRGB"](255, 70, 70),
+					["SurvivorHealthy"] = Color3["fromRGB"](75, 220, 120),
+					["SurvivorInjured"] = Color3["fromRGB"](65, 200, 105),
+					["SurvivorKnocked"] = Color3["fromRGB"](55, 180, 95),
+					["Generator"] = Color3["fromRGB"](255, 235, 145),
+					["Hook"] = Color3["fromRGB"](255, 70, 70),
+					["Pallet"] = Color3["fromRGB"](255, 155, 55),
+					["Vault"] = Color3["fromRGB"](255, 155, 55),
 					["BloodEffect"] = Color3["fromRGB"](180, 0, 0),
-					["Gate"] = Color3["fromRGB"](255, 255, 255),
+					["Gate"] = Color3["fromRGB"](255, 195, 125),
 					["SCP"] = Color3["fromRGB"](150, 0, 255),
 					["Tracer"] = Color3["fromRGB"](255, 255, 255),
-					["Me"] = Color3["fromRGB"](255, 255, 255),
+					["Me"] = Color3["fromRGB"](75, 220, 120),
 				}
 				for IndexLocal, ValueLocal33 in pairs(Values16) do
 					if SettingsLocal1["ESPColors"][IndexLocal] == nil then
@@ -16185,7 +16223,12 @@ local function __A0Initialize()
 	end
 	__A0Boot:Budget()
 	function getESPColor(Argument)
-		return SettingsLocal1["ESPColors"][Argument] or Color3["fromRGB"](255, 255, 255)
+		local Colors = SettingsLocal1.ESPColors
+		local Value = type(Colors) == "table" and Colors[Argument]
+		if typeof(Value) == "Color3" then
+			return Value
+		end
+		return A0ESPPalette[Argument] or Color3.fromRGB(255, 255, 255)
 	end
 	__A0Boot:Budget()
 	function getSelectedKiller(Argument)
@@ -18678,7 +18721,18 @@ local function __A0Initialize()
 		return Api
 	end
 	function A0Features.CreateVeilAdapter(Deps)
-		local Api = { Destroyed = false, ChargeFunction = nil, Character = nil, Status = "Veil input not sampled" }
+		local Api = {
+			Destroyed = false,
+			ChargeFunction = nil,
+			Character = nil,
+			Status = "Veil input not sampled",
+			Generation = 0,
+			Busy = false,
+			RetryAt = 0,
+			RetryDelay = 4,
+			ChargeAt = -math.huge,
+		}
+		local ChargeKeys = { "spearcharge", "Charge", "SpearCharge", "ChargeProgress", "charge" }
 		local function Finite(Argument)
 			return type(Argument) == "number" and Argument == Argument and math.abs(Argument) < math.huge
 		end
@@ -18690,16 +18744,40 @@ local function __A0Initialize()
 		end
 		function Api:Warm()
 			local CharacterLocal = Deps.character()
-			if self.Character ~= CharacterLocal then
-				self.Character = CharacterLocal
-				self.ChargeFunction = nil
+			local AnimationScript = CharacterLocal and CharacterLocal:FindFirstChild("Animations")
+			if self.Character ~= CharacterLocal or self.AnimationScript ~= AnimationScript then
+				self:Reset()
+				self.Character, self.AnimationScript = CharacterLocal, AnimationScript
 			end
-			if self.Destroyed or not Deps.alive() or not CharacterLocal or self.ChargeFunction then
+			if
+				self.Destroyed
+				or not Deps.alive()
+				or not CharacterLocal
+				or self.ChargeFunction
+				or self.Busy
+				or Deps.clock() < self.RetryAt
+			then
 				return
 			end
-			self.ChargeFunction = Deps.discover(CharacterLocal)
+			self.Busy = true
+			local Generation = self.Generation
+			local Success, Found = pcall(Deps.discover, CharacterLocal)
+			if Generation ~= self.Generation then
+				return
+			end
+			self.Busy = false
+			if self.Destroyed or not Deps.alive() or Deps.character() ~= CharacterLocal then
+				return
+			end
+			if Success and type(Found) == "function" then
+				self.ChargeFunction = Found
+				self.RetryDelay = 4
+			else
+				self.RetryAt = Deps.clock() + self.RetryDelay
+				self.RetryDelay = math.min(self.RetryDelay * 2, 16)
+			end
 		end
-		function Api:Charge()
+		function Api:ReadCharge()
 			local CharacterLocal = Deps.character()
 			local Now = Deps.serverTime()
 			if CharacterLocal and CharacterLocal == self.Character and self.ChargeFunction and Deps.upvalues then
@@ -18716,7 +18794,7 @@ local function __A0Initialize()
 				end
 			end
 			if CharacterLocal then
-				for _, KeyLocal in ipairs({ "spearcharge", "Charge", "SpearCharge", "ChargeProgress", "charge" }) do
+				for _, KeyLocal in ipairs(ChargeKeys) do
 					local ValueLocal36 = CharacterLocal:GetAttribute(KeyLocal)
 					if Finite(ValueLocal36) then
 						if ValueLocal36 > 1 then
@@ -18734,6 +18812,18 @@ local function __A0Initialize()
 			end
 			self.Start = nil
 			return 1, false
+		end
+		function Api:Charge()
+			if self.Destroyed or not Deps.alive() then
+				return 1, false
+			end
+			local Now, CharacterLocal = Deps.clock(), Deps.character()
+			if self.ChargeCharacter == CharacterLocal and Now - self.ChargeAt < 1 / 60 then
+				return self.ChargeValue, self.Charging
+			end
+			self.ChargeValue, self.Charging = self:ReadCharge()
+			self.ChargeAt, self.ChargeCharacter = Now, CharacterLocal
+			return self.ChargeValue, self.Charging
 		end
 		function Api:Speed()
 			local ChargeLocal = self:Charge()
@@ -18838,6 +18928,10 @@ local function __A0Initialize()
 			return true
 		end
 		function Api:Reset()
+			self.Generation += 1
+			self.Busy, self.RetryAt, self.RetryDelay = false, 0, 4
+			self.ChargeAt, self.ChargeCharacter = -math.huge, nil
+			self.ChargeValue, self.Charging, self.AnimationScript = nil, nil, nil
 			self.Character = nil
 			self.ChargeFunction = nil
 			self.Start = nil
@@ -19063,7 +19157,7 @@ local function __A0Initialize()
 		return Api
 	end
 	function A0Features.CreateMotion(Deps)
-		local Api = { History = setmetatable({}, { __mode = "k" }) }
+		local Api = { History = setmetatable({}, { __mode = "k" }), NextPrune = 0 }
 		function Api:Reset()
 			table.clear(self.History)
 		end
@@ -19076,6 +19170,14 @@ local function __A0Initialize()
 				Raw = Zero
 			end
 			local Now = Deps.clock()
+			if Now >= self.NextPrune then
+				self.NextPrune = Now + 2
+				for Key, Record in pairs(self.History) do
+					if Now - Record.Time > 2 or (Record.Part and not Record.Part.Parent) then
+						self.History[Key] = nil
+					end
+				end
+			end
 			local PreviousLocal = self.History[KeyLocal]
 			local PositionLocal = PartLocal and PartLocal.Position
 			if not PreviousLocal or PreviousLocal.Part ~= PartLocal or Now - PreviousLocal.Time > 0.5 then
@@ -19146,8 +19248,11 @@ local function __A0Initialize()
 		end
 		local Force = Acceleration + Vector(0, GravityLocal, 0)
 		local function RequiredLocal(Argument)
-			local OffsetLocal = Delta + VelocityLocal * Argument + Force * (0.5 * Argument * Argument)
-			return OffsetLocal:Dot(OffsetLocal) - SpeedLocal * SpeedLocal * Argument * Argument
+			local HalfTime2 = 0.5 * Argument * Argument
+			local X = Delta.X + VelocityLocal.X * Argument + Force.X * HalfTime2
+			local Y = Delta.Y + VelocityLocal.Y * Argument + Force.Y * HalfTime2
+			local Z = Delta.Z + VelocityLocal.Z * Argument + Force.Z * HalfTime2
+			return X * X + Y * Y + Z * Z - SpeedLocal * SpeedLocal * Argument * Argument
 		end
 		local Lower, Upper = 0, nil
 		local Limit = math.min(8, math.max(0.5, Delta.Magnitude / SpeedLocal * 3 + 1))
@@ -28027,6 +28132,9 @@ local function __A0Initialize()
 				TargetLocal = SettingsLocal1[GroupLocal]
 			end
 			TargetLocal[KeyLocal or PathLocal] = ValueLocal37
+			if GroupLocal == "ESPColors" or PathLocal:match("^ESP.*ColorMode$") then
+				A0NormalizeESPColors(SettingsLocal1, __A0Boot.Running)
+			end
 			Effect()
 		end
 	end
@@ -45965,7 +46073,7 @@ local function __A0Initialize()
 			end
 			return false
 		end
-		local Values20 = {}
+		local Values20 = setmetatable({}, { __mode = "k" })
 		local function HandleAction24(Argument)
 			if not Argument then
 				return
@@ -45991,7 +46099,10 @@ local function __A0Initialize()
 			end
 			local ValueLocal41 = Argument["Name"]:lower()
 			if (ValueLocal41:find("spear") or ValueLocal41:find("projectile")) and not HandleAction23(Argument) then
-				table["insert"](Values20, Argument)
+				if Values20[Argument] then
+					return
+				end
+				Values20[Argument] = true
 				pcall(function()
 					local ValueLocal42 = localPlayer["Character"]
 					local Head = ValueLocal42
@@ -46114,7 +46225,6 @@ local function __A0Initialize()
 			if (Argument:IsA("BasePart") or Argument:IsA("Model")) and not HandleAction23(Argument) then
 				local ValueLocal40 = Argument["Name"]:lower()
 				if ValueLocal40:find("spear") or ValueLocal40:find("projectile") then
-					table["insert"](Values20, Argument)
 					local HumanoidRootPart = localPlayer["Character"]
 						and localPlayer["Character"]:FindFirstChild("HumanoidRootPart")
 					if HumanoidRootPart then
@@ -46134,14 +46244,9 @@ local function __A0Initialize()
 			pcall(HandleAction24, Argument)
 		end))
 		registerConnection(workspace["DescendantRemoving"]:Connect(function(Argument)
-			if not ActiveLoop or not HandleAction22() then
-				return
-			end
-			local ValueLocal40 = table["find"](Values20, Argument)
-			if ValueLocal40 then
-				table["remove"](Values20, ValueLocal40)
-			end
+			Values20[Argument] = nil
 		end))
+
 		local ValueLocal40
 		ValueLocal40 = registerConnection(RunService["Heartbeat"]:Connect(function()
 			if not ActiveLoop then
@@ -46150,7 +46255,7 @@ local function __A0Initialize()
 				end
 				return
 			end
-			if not HandleAction22() or #Values20 == 0 then
+			if not HandleAction22() or next(Values20) == nil then
 				return
 			end
 			local HumanoidRootPart = localPlayer["Character"]
@@ -46158,7 +46263,7 @@ local function __A0Initialize()
 			if not HumanoidRootPart then
 				return
 			end
-			for IndexLocal, ValueLocal41 in ipairs(Values20) do
+			for ValueLocal41 in pairs(Values20) do
 				if ValueLocal41 and ValueLocal41["Parent"] then
 					local ValueLocal42, ValueLocal43 = pcall(function()
 						local ValueLocal42 = ValueLocal41:IsA("Model") and (ValueLocal41:GetPivot())["Position"]
@@ -46169,6 +46274,8 @@ local function __A0Initialize()
 						HandleAction20("Heartbeat spear within " .. (tostring(math["floor"](ValueLocal43)) .. " studs"))
 						break
 					end
+				else
+					Values20[ValueLocal41] = nil
 				end
 			end
 		end))
@@ -46184,18 +46291,27 @@ local function __A0Initialize()
 			["White"] = Color3["fromRGB"](255, 255, 255),
 		}
 		local Values22 = {}
+		local TrajectoryAdorns, TrajectoryPoints = {}, {}
+		local TrajectoryHidden = true
+		local TrajectoryParams = RaycastParams.new()
+		TrajectoryParams.FilterType = Enum.RaycastFilterType.Exclude
+		local FilterCharacter, FilterFolder
 		local Number10 = 40
 		local ValueLocal41 = nil
 		local ValueLocal42 = nil
 		local ValueLocal43 = nil
 		local ValueLocal44 = nil
 		local function HandleAction25(Argument)
-			for PlayersLocal, PlayersLocal1 in ipairs((game:GetService("Players")):GetPlayers()) do
-				if PlayersLocal1["Character"] and Argument:IsDescendantOf(PlayersLocal1["Character"]) then
-					return PlayersLocal1
+			local Node = Argument
+			while Node and Node ~= workspace do
+				if Node:IsA("Model") then
+					local Player = Players:GetPlayerFromCharacter(Node)
+					if Player then
+						return Player
+					end
 				end
+				Node = Node.Parent
 			end
-			return nil
 		end
 		local function HandleAction26()
 			ValueLocal41 = workspace:FindFirstChild("VD_SpearTrajectory")
@@ -46206,7 +46322,9 @@ local function __A0Initialize()
 			ValueLocal41["Name"] = "VD_SpearTrajectory"
 			ValueLocal41["Archivable"] = false
 			ValueLocal41["Parent"] = workspace
-			Values22 = {}
+			table.clear(Values22)
+			table.clear(TrajectoryAdorns)
+			TrajectoryHidden = true
 			for IndexLocal = 1, Number10, 1 do
 				local ValueLocal45 = __A0Boot:New("Part")
 				ValueLocal45["Size"] = Vector3["new"](0.08, 0.08, 1)
@@ -46226,6 +46344,7 @@ local function __A0Initialize()
 				ValueLocal46["Adornee"] = ValueLocal45
 				ValueLocal46["Parent"] = ValueLocal45
 				table["insert"](Values22, ValueLocal45)
+				TrajectoryAdorns[IndexLocal] = ValueLocal46
 			end
 			ValueLocal42 = __A0Boot:New("Part")
 			ValueLocal42["Size"] = Vector3["new"](0.1, 0.1, 0.1)
@@ -46252,7 +46371,6 @@ local function __A0Initialize()
 			ValueLocal44["Color3"] = Color3["fromRGB"](255, 125, 0)
 			ValueLocal44["Parent"] = ValueLocal41
 		end
-		pcall(HandleAction26)
 		local function HandleAction27(Argument, Argument1, Argument2, Argument3)
 			local ValueLocal45 = __A0Boot:New("ScreenGui")
 			ValueLocal45["Name"] = Argument .. "_Gui"
@@ -46415,13 +46533,9 @@ local function __A0Initialize()
 			if not Argument then
 				return false
 			end
-			for PlayersLocal, PlayersLocal1 in ipairs((game:GetService("Players")):GetPlayers()) do
-				if
-					PlayersLocal1 ~= localPlayer
-					and (PlayersLocal1["Character"] and Argument:IsDescendantOf(PlayersLocal1["Character"]))
-				then
-					return true
-				end
+			local Player = HandleAction25(Argument)
+			if Player and Player ~= localPlayer then
+				return true
 			end
 			if SettingsLocal1["SpearTrajectoryNoclip"] and true then
 				return false
@@ -46457,23 +46571,26 @@ local function __A0Initialize()
 		end
 
 		local function HandleAction32(Argument, Argument1, Argument2, Argument3, Argument4)
-			local Values23 = {
-				Argument,
-			}
+			local Values23 = TrajectoryPoints
+			table.clear(Values23)
+			Values23[1] = Argument
 			local ValueLocal45 = Argument
 			local ValueLocal46 = Argument1 * Argument2
 			local Number11 = 0.065
 			local Number12 = 40
 			local ValueLocal47 = SettingsLocal1["SpearTrajectoryNoclip"] and true
-			local ValueLocal48 = RaycastParams["new"]()
-			ValueLocal48["FilterType"] = Enum["RaycastFilterType"]["Exclude"]
-			local Values24 = {
-				localPlayer["Character"],
-			}
-			if ValueLocal41 then
-				table["insert"](Values24, ValueLocal41)
+			local ValueLocal48 = TrajectoryParams
+			if FilterCharacter ~= localPlayer.Character or FilterFolder ~= ValueLocal41 then
+				FilterCharacter, FilterFolder = localPlayer.Character, ValueLocal41
+				local Filter = {}
+				if FilterCharacter then
+					Filter[#Filter + 1] = FilterCharacter
+				end
+				if FilterFolder then
+					Filter[#Filter + 1] = FilterFolder
+				end
+				ValueLocal48.FilterDescendantsInstances = Filter
 			end
-			ValueLocal48["FilterDescendantsInstances"] = Values24
 			local ValueLocal49 = nil
 			for IndexLocal = 1, Number12, 1 do
 				local ValueLocal50 = (ValueLocal45 + ValueLocal46 * Number11)
@@ -46504,11 +46621,12 @@ local function __A0Initialize()
 			return Values23, ValueLocal49
 		end
 		local function HandleAction33()
-			if not ValueLocal41 then
+			if TrajectoryHidden then
 				return
 			end
+			TrajectoryHidden = true
 			for IndexLocal, ValueLocal45 in ipairs(Values22) do
-				local Adorn = ValueLocal45:FindFirstChild("Adorn")
+				local Adorn = TrajectoryAdorns[IndexLocal]
 				if Adorn then
 					Adorn["Transparency"] = 1
 				end
@@ -46524,19 +46642,32 @@ local function __A0Initialize()
 		local ValueLocal45 = false
 		local ValueLocal46
 		local NextTrajectory = 0
-		ValueLocal46 = registerConnection(RunService["RenderStepped"]:Connect(function()
+		ValueLocal46 = registerConnection(RunService.Heartbeat:Connect(function()
 			if tick() < NextTrajectory then
 				return
 			end
 			NextTrajectory = tick() + 0.05
-			if not ActiveLoop or not (SettingsLocal1["SpearTrajectory"] and true) then
+			if
+				not __A0Boot.Accepted
+				or UiLibrary.Destroyed
+				or not ActiveLoop
+				or not (SettingsLocal1["SpearTrajectory"] and true)
+			then
 				HandleAction33()
 				return
 			end
-			if not ValueLocal41 or ValueLocal41["Parent"] == nil then
-				pcall(HandleAction26)
-			end
 			local ValueLocal47 = HandleAction28()
+			if not ValueLocal47 then
+				ValueLocal45 = false
+				HandleAction33()
+				return
+			end
+			if not ValueLocal41 or ValueLocal41.Parent == nil then
+				local Success = pcall(HandleAction26)
+				if not Success then
+					return
+				end
+			end
 			if ValueLocal47 and not ValueLocal45 then
 				_G["VD_SpearChargeStart"] = tick()
 			end
@@ -46641,6 +46772,7 @@ local function __A0Initialize()
 				end
 			end
 			if ValueLocal48 and #ValueLocal48 > 1 then
+				TrajectoryHidden = false
 				local ValueLocal50 = #ValueLocal48
 				local ValueLocal51 = false
 				if ValueLocal49 and ValueLocal49["Instance"] then
@@ -46652,7 +46784,7 @@ local function __A0Initialize()
 				for IndexLocal = 1, Number10, 1 do
 					local ValueLocal52 = Values22[IndexLocal]
 					if ValueLocal52 then
-						local Adorn = ValueLocal52:FindFirstChild("Adorn")
+						local Adorn = TrajectoryAdorns[IndexLocal]
 						if IndexLocal < ValueLocal50 then
 							local ValueLocal53 = ValueLocal48[IndexLocal]
 							local ValueLocal54 = ValueLocal48[IndexLocal + 1]
@@ -46702,6 +46834,24 @@ local function __A0Initialize()
 			end
 		end))
 		registerConnection(ValueLocal46)
+		UiLibrary:OnUnload(function()
+			if ValueLocal46 then
+				ValueLocal46:Disconnect()
+			end
+			if ValueLocal40 then
+				ValueLocal40:Disconnect()
+			end
+			if ValueLocal41 then
+				ReleaseResource(ValueLocal41, "Destroy")
+			end
+			ValueLocal41, ValueLocal42, ValueLocal43, ValueLocal44 = nil, nil, nil, nil
+			FilterCharacter, FilterFolder = nil, nil
+			TrajectoryParams.FilterDescendantsInstances = {}
+			table.clear(Values20)
+			table.clear(Values22)
+			table.clear(TrajectoryAdorns)
+			table.clear(TrajectoryPoints)
+		end)
 	end)
 	__A0Boot:Budget()
 	__A0Boot:SpawnJob("Restoring config and backdrop…", function()
@@ -47780,6 +47930,7 @@ local function __A0Initialize()
 				),
 			}
 		end
+		local TargetScanAt, TargetCharacter, TargetKind, TargetCamera = 0, nil, nil, nil
 		getSilentAimTarget = function()
 			local ValueLocal40 = localPlayer["Character"]
 			local ValueLocal41 = workspace["CurrentCamera"]
@@ -47920,21 +48071,37 @@ local function __A0Initialize()
 			return ValueLocal47["X"] - (ValueLocal50 / 2), ValueLocal43["Y"], ValueLocal50, ValueLocal49
 		end
 		updateSilentAimTargetHighlight = function()
+			if not ActiveLoop or UiLibrary.Destroyed or not __A0Boot.Accepted then
+				return
+			end
 			local ValueLocal40 = SettingsLocal1["SpearSilentAim"]
-				and (SettingsLocal1["SpearSilentAim"]["Enabled"] and true)
+				and SettingsLocal1.SpearSilentAim.Enabled
+				and SettingsLocal1.SpearSilentAim.TargetHighlightEnabled
 			local ValueLocal41 = SettingsLocal1["RevolverSilentAim"]
-				and (SettingsLocal1["RevolverSilentAim"]["Enabled"] and true)
+				and SettingsLocal1.RevolverSilentAim.Enabled
+				and SettingsLocal1.RevolverSilentAim.TargetHighlightEnabled
 			if not ValueLocal40 and not ValueLocal41 then
 				if Values21["frame"] and Values21["frame"]["Visible"] then
 					Values21["frame"]["Visible"] = false
 				end
+				TargetCharacter, TargetKind = nil, nil
+				TargetScanAt = 0
 				return
 			end
 			setupTargetBoxGui()
-			local ValueLocal42, ValueLocal43 = nil, nil
-			pcall(function()
-				ValueLocal42, ValueLocal43 = getSilentAimTarget()
-			end)
+			local Now = tick()
+			if
+				Now >= TargetScanAt
+				or TargetCamera ~= workspace.CurrentCamera
+				or (TargetCharacter and not TargetCharacter.Parent)
+			then
+				TargetScanAt, TargetCamera = Now + 0.05, workspace.CurrentCamera
+				TargetCharacter, TargetKind = nil, nil
+				pcall(function()
+					TargetCharacter, TargetKind = getSilentAimTarget()
+				end)
+			end
+			local ValueLocal42, ValueLocal43 = TargetCharacter, TargetKind
 			if ValueLocal42 and (ValueLocal43 and Values21["frame"]) then
 				local ValueLocal44, ValueLocal45, ValueLocal46, ValueLocal47 = get2DBoundingBox(ValueLocal42)
 				if ValueLocal44 and (ValueLocal45 and (ValueLocal46 and ValueLocal47)) then
@@ -47994,6 +48161,14 @@ local function __A0Initialize()
 				updateSilentAimTargetHighlight()
 			end
 		end))
+		UiLibrary:OnUnload(function()
+			if Values21.gui then
+				ReleaseResource(Values21.gui, "Destroy")
+			end
+			Values21.gui, Values21.frame = nil, nil
+			table.clear(Values21.corners)
+			TargetCharacter, TargetKind, TargetCamera = nil, nil, nil
+		end)
 	end)()
 
 	__A0Boot:Budget()
@@ -48148,6 +48323,8 @@ local function __A0Initialize()
 				return {}
 			end
 			local Result = {}
+			local AnimationScript = CharacterLocal:FindFirstChild("Animations")
+			local SliceStarted = os.clock()
 			for IndexLocal, CallbackLocal in ipairs(ListLocal) do
 				if not AliveLocal() or localPlayer.Character ~= CharacterLocal then
 					break
@@ -48155,13 +48332,16 @@ local function __A0Initialize()
 				if type(CallbackLocal) == "function" then
 					if KindLocal == "Veil" then
 						local Named, NameLocal = pcall(debug.info, CallbackLocal, "n")
-						local EnvOK, Env = pcall(getfenv, CallbackLocal)
+						local EnvOK, Env = false, nil
+						if Named and NameLocal == "endAttack" then
+							EnvOK, Env = pcall(getfenv, CallbackLocal)
+						end
 						if
 							Named
 							and NameLocal == "endAttack"
 							and EnvOK
 							and type(Env) == "table"
-							and rawget(Env, "script") == CharacterLocal:FindFirstChild("Animations")
+							and rawget(Env, "script") == AnimationScript
 						then
 							Result[#Result + 1] = CallbackLocal
 							break
@@ -48176,8 +48356,9 @@ local function __A0Initialize()
 				if IndexLocal >= 20000 then
 					break
 				end
-				if IndexLocal % 64 == 0 then
-					task.wait()
+				if IndexLocal % 64 == 0 and os.clock() - SliceStarted >= 0.0015 then
+					RunService.Heartbeat:Wait()
+					SliceStarted = os.clock()
 				end
 			end
 			return Result
