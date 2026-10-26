@@ -1675,6 +1675,9 @@ local function A0InterfaceFactory()
 				}
 
 				__A0Boot:Budget()
+				ThaiText["Run While Pathfinding"] = "วิ่งขณะเดินตามเส้นทาง"
+				ThaiText["Pathfinding Run Speed"] = "ความเร็ววิ่งตามเส้นทาง"
+				ThaiText["Repair Animation"] = "ท่าทางซ่อมเครื่องปั่นไฟ"
 				local ShortEnglishText = {
 					["Custom Speed Keybinds"] = "Speed Keys",
 					["Custom Speed Keybinds Options"] = "Speed Keys Options",
@@ -15228,6 +15231,9 @@ local function __A0Initialize()
 			TrapAutoSkillCheck = true,
 			AutoFarmMethod = "Pathfinding Walk",
 			SafeWalkSpeed = 16,
+			FarmRun = true,
+			FarmRunSpeed = 24,
+			FarmRepairAnimation = true,
 		})
 		for _, NameLocal in ipairs({ "PumpkinsESP", "BearTrapESP" }) do
 			if type(SettingsLocal1[NameLocal]) ~= "table" then
@@ -15254,6 +15260,9 @@ local function __A0Initialize()
 		end
 		FillMissing(SettingsLocal1.RevolverSilentAim, { Prediction = true, ProjectileSpeed = 500 })
 		SettingsLocal1.SafeWalkSpeed = math.clamp(tonumber(SettingsLocal1.SafeWalkSpeed) or 16, 14, 24)
+		SettingsLocal1.FarmRunSpeed = math.clamp(tonumber(SettingsLocal1.FarmRunSpeed) or 24, 16, 30)
+		SettingsLocal1.FarmRun = SettingsLocal1.FarmRun == true
+		SettingsLocal1.FarmRepairAnimation = SettingsLocal1.FarmRepairAnimation == true
 		SettingsLocal1.RevolverSilentAim.ProjectileSpeed =
 			math.clamp(tonumber(SettingsLocal1.RevolverSilentAim.ProjectileSpeed) or 500, 100, 1500)
 		SettingsLocal1.FakeVault = SettingsLocal1.FakeVault == true
@@ -18115,6 +18124,225 @@ local function __A0Initialize()
 		end
 		return Api
 	end
+
+	function A0Features.EnsureFarmHeal()
+		if SettingsLocal1.InstantHeal then
+			return
+		end
+		SettingsLocal1.InstantHeal = true
+		local Control = controlRegistry and controlRegistry.InstantHeal
+		if Control and Control.setValue then
+			pcall(Control.setValue, true, false)
+		end
+		if A0Features.InstantRecovery then
+			A0Features.InstantRecovery:Reset()
+		end
+		pcall(saveSettings)
+	end
+	function A0Features.CreateFarmPresentation(Deps)
+		local Api = {
+			Destroyed = false,
+			SprintHeld = false,
+			Point = nil,
+			Character = nil,
+			Track = nil,
+			NextAssetScan = 0,
+			Status = "Idle",
+			Generation = 0,
+		}
+		function Api:SetRunning(Enabled)
+			Enabled = Enabled == true and not self.Destroyed and Deps.alive()
+			if Enabled == self.SprintHeld then
+				return
+			end
+			if Enabled then
+				self.SprintHeld = pcall(Deps.sprint, true)
+			else
+				self.SprintHeld = false
+				pcall(Deps.sprint, false)
+			end
+		end
+		function Api:StopRepair()
+			self.Generation += 1
+			self.Point = nil
+			if self.Track then
+				pcall(function()
+					self.Track:Stop(0.18)
+					self.Track:Destroy()
+				end)
+				self.Track = nil
+			end
+			if self.RotatingHumanoid and self.RotatingHumanoid.Parent and self.RotatingHumanoid.AutoRotate == false then
+				self.RotatingHumanoid.AutoRotate = self.PreviousAutoRotate
+			end
+			self.RotatingHumanoid, self.PreviousAutoRotate = nil, nil
+		end
+		function Api:Reset()
+			self:SetRunning(false)
+			self:StopRepair()
+			self.Character, self.AnimationId = nil, nil
+			self.NextAssetScan = 0
+		end
+		function Api:FindRepairAnimation(Point, Character, Generation)
+			if self.AnimationId then
+				return self.AnimationId
+			end
+			if Deps.clock() < self.NextAssetScan then
+				return nil
+			end
+			self.NextAssetScan = Deps.clock() + 30
+			local Roots = { Point.Parent, Character }
+			local Storage = Deps.storage
+			local Assets = Storage and (Storage:FindFirstChild("Animations") or Storage:FindFirstChild("Assets"))
+			if Assets then
+				Roots[#Roots + 1] = Assets
+			elseif Storage then
+				Roots[#Roots + 1] = Storage
+			end
+			local Queue, Seen, Head, Visited = {}, {}, 1, 0
+			for _, Root in ipairs(Roots) do
+				if Root and not Seen[Root] then
+					Seen[Root] = true
+					Queue[#Queue + 1] = Root
+				end
+			end
+			local Id, Score = nil, 0
+			while Head <= #Queue and Visited < 4096 do
+				if
+					self.Destroyed
+					or not Deps.alive()
+					or self.Generation ~= Generation
+					or Deps.player.Character ~= Character
+				then
+					return nil
+				end
+				local Object = Queue[Head]
+				Queue[Head] = false
+				Head += 1
+				Visited += 1
+				if Object:IsA("Animation") and Object.AnimationId ~= "" then
+					local Name, Parent, Depth = Object.Name:lower(), Object.Parent, 0
+					while Parent and Depth < 4 do
+						Name ..= "/" .. Parent.Name:lower()
+						Parent, Depth = Parent.Parent, Depth + 1
+					end
+					local Value = Name:find("repair", 1, true) and 10 or 0
+					if Name:find("generator", 1, true) and Value > 0 then
+						Value += 10
+					end
+					if Name:find("loop", 1, true) then
+						Value += Value > 0 and 2 or 0
+					end
+					if Name:find("killer", 1, true) or Name:find("fail", 1, true) or Name:find("end", 1, true) then
+						Value = 0
+					end
+					if Value > Score then
+						Id, Score = Object.AnimationId, Value
+					end
+				end
+				for _, Child in ipairs(Object:GetChildren()) do
+					if not Seen[Child] and #Queue < 4096 then
+						Seen[Child] = true
+						Queue[#Queue + 1] = Child
+					end
+				end
+				if Visited % 64 == 0 then
+					Deps.yield()
+				end
+			end
+			if self.Generation == Generation and Deps.player.Character == Character then
+				self.AnimationId = Id
+			end
+			return Id
+		end
+		function Api:BeginRepair(Point)
+			if self.Destroyed or not Deps.alive() or not Point or not Point.Parent then
+				return false
+			end
+			local Character = Deps.player.Character
+			if self.Character ~= Character then
+				self:Reset()
+				self.Character = Character
+			end
+			if self.Point == Point then
+				return true
+			end
+			self:StopRepair()
+			self:SetRunning(false)
+			local Humanoid = Character and Character:FindFirstChildOfClass("Humanoid")
+			local Root = Character and Character:FindFirstChild("HumanoidRootPart")
+			if not Humanoid or not Root or Humanoid.Health <= 0 or (Root.Position - Point.Position).Magnitude > 10 then
+				return false
+			end
+			self.Point = Point
+			local Generation = self.Generation
+			local Prompt = Point:FindFirstChildWhichIsA("ProximityPrompt", true)
+			if Prompt and Prompt.Enabled and Deps.prompt then
+				pcall(Deps.prompt, Prompt)
+			end
+			if not Deps.settings().FarmRepairAnimation then
+				self.Status = "Repair interaction started; animation disabled"
+				return true
+			end
+			local AnimationId = self:FindRepairAnimation(Point, Character, Generation)
+			if
+				self.Generation ~= Generation
+				or self.Destroyed
+				or Deps.player.Character ~= Character
+				or self.Point ~= Point
+			then
+				return false
+			end
+			local Animator = Humanoid:FindFirstChildOfClass("Animator")
+			if not AnimationId or not Animator then
+				self.Status = "Repairing; no replicated repair animation found"
+				return true
+			end
+			local Success, Track = pcall(Deps.load, Animator, AnimationId)
+			if Success and Track then
+				if
+					self.Destroyed
+					or self.Generation ~= Generation
+					or Deps.player.Character ~= Character
+					or self.Point ~= Point
+				then
+					pcall(Track.Destroy, Track)
+					return false
+				end
+				self.Track = Track
+				local Played = pcall(function()
+					Track.Priority = Enum.AnimationPriority.Action
+					Track.Looped = true
+					Track:Play(0.18)
+					self.RotatingHumanoid, self.PreviousAutoRotate = Humanoid, Humanoid.AutoRotate
+					Humanoid.AutoRotate = false
+					local Target = Point.Parent:IsA("Model") and Point.Parent:GetPivot().Position or Point.Position
+					local Aim = Vector3.new(Target.X, Root.Position.Y, Target.Z)
+					if (Aim - Root.Position).Magnitude > 0.1 then
+						Root.CFrame = CFrame.lookAt(Root.Position, Aim)
+					end
+				end)
+				if not Played then
+					self:StopRepair()
+					self.Status = "Repairing; game animation could not be played"
+					return true
+				end
+				self.Status = "Repairing with game animation"
+			else
+				self.Status = "Repairing; game animation could not be loaded"
+			end
+			return true
+		end
+		function Api:Destroy()
+			if self.Destroyed then
+				return
+			end
+			self:Reset()
+			self.Destroyed = true
+		end
+		return Api
+	end
+
 	function A0Features.CreateNavigation(Deps)
 		local Api = { Generation = 0, Destroyed = false, Busy = false, Status = "Idle", Owner = nil }
 		function Api:ReleasePath()
@@ -18134,6 +18362,9 @@ local function __A0Initialize()
 		function Api:Cancel()
 			self.Generation += 1
 			self:ReleasePath()
+			if Deps.movement then
+				pcall(Deps.movement, false)
+			end
 			local HumanoidLocal = self.Humanoid
 			if HumanoidLocal and HumanoidLocal.Parent then
 				pcall(function()
@@ -18173,7 +18404,9 @@ local function __A0Initialize()
 					and CharacterLocal:GetAttribute("IsHooked") ~= true
 			end
 			local OriginalLocal = HumanoidLocal.WalkSpeed
-			local SpeedLocal = math.clamp(tonumber(Deps.settings().SafeWalkSpeed) or 16, 14, 24)
+			local Running = Deps.settings().FarmRun == true
+			local SpeedLocal = Running and math.clamp(tonumber(Deps.settings().FarmRunSpeed) or 24, 16, 30)
+				or math.clamp(tonumber(Deps.settings().SafeWalkSpeed) or 16, 14, 24)
 			local function Reached(PositionLocal, Tolerance)
 				local GapLocal = RootLocal.Position - PositionLocal
 				return GapLocal.X * GapLocal.X + GapLocal.Z * GapLocal.Z <= Tolerance * Tolerance
@@ -18233,8 +18466,12 @@ local function __A0Initialize()
 							if PointLocal.Action == Enum.PathWaypointAction.Jump then
 								HumanoidLocal.Jump = true
 							end
+							if Deps.movement then
+								pcall(Deps.movement, Running)
+							end
+							HumanoidLocal.WalkSpeed = SpeedLocal
 							HumanoidLocal:MoveTo(PointLocal.Position)
-							self.Status = "Walking"
+							self.Status = Running and "Running" or "Walking"
 							local Due = math.min(
 								Deadline,
 								Deps.clock()
@@ -18252,6 +18489,9 @@ local function __A0Initialize()
 								end
 								if BlockedLocal then
 									break
+								end
+								if HumanoidLocal.WalkSpeed ~= SpeedLocal then
+									HumanoidLocal.WalkSpeed = SpeedLocal
 								end
 								if Deps.clock() >= Due then
 									Stalled = true
@@ -18283,6 +18523,9 @@ local function __A0Initialize()
 				return false
 			end)
 			self:ReleasePath()
+			if Deps.movement then
+				pcall(Deps.movement, false)
+			end
 			if HumanoidLocal.Parent and HumanoidLocal.WalkSpeed == SpeedLocal then
 				HumanoidLocal.WalkSpeed = OriginalLocal
 			end
@@ -20977,6 +21220,13 @@ local function __A0Initialize()
 			end
 			while ActiveLoop and not UiLibrary.Destroyed do
 				local SuccessLocal, Reason = pcall(function()
+					if
+						(SettingsLocal1.AutoFarmSurvivor or SettingsLocal1.AutoFarmAFKTotal)
+						and localPlayer.Team
+						and localPlayer.Team.Name == "Survivors"
+					then
+						A0Features.EnsureFarmHeal()
+					end
 					A0Features.Healing:Step()
 					A0Features.InstantRecovery:Step()
 				end)
@@ -28918,6 +29168,7 @@ local function __A0Initialize()
 					end
 					SettingsLocal1["AutoFarmSurvivor"] = Argument
 					if Argument then
+						A0Features.EnsureFarmHeal()
 						_G["VD_FarmState"]["farmTeamStartTime"] = tick()
 						_G["VD_FarmState"]["farmLastTeamName"] = ""
 						showNotification("Auto Farm Enabled", "Starting automatic generator repairs.", "success")
@@ -40926,7 +41177,33 @@ local function __A0Initialize()
 			end
 			return nil, nil, nil
 		end
+		local RepairPulseAt = 0
+		local function StartFarmRepair(Point)
+			if not ValueLocal44 or not Point or not Point.Parent then
+				return false
+			end
+			local Now = tick()
+			if isRepairingRemoteActive and ValueLocal47 == Point and Now < RepairPulseAt then
+				return true
+			end
+			local Sent = pcall(function()
+				ValueLocal44:FireServer(Point, true)
+			end)
+			if not Sent then
+				return false
+			end
+			RepairPulseAt = Now + 1
+			isRepairingRemoteActive, ValueLocal47 = true, Point
+			if A0Features.FarmPresentation then
+				A0Features.FarmPresentation:BeginRepair(Point)
+			end
+			return true
+		end
 		local function HandleAction46()
+			RepairPulseAt = 0
+			if A0Features.FarmPresentation then
+				A0Features.FarmPresentation:StopRepair()
+			end
 			if ValueLocal44 then
 				if ValueLocal41 then
 					pcall(function()
@@ -40983,11 +41260,7 @@ local function __A0Initialize()
 							TextLocal3 = "Repairing"
 							updateStatus("REPAIRING")
 							if ValueLocal44 then
-								pcall(function()
-									ValueLocal44:FireServer(ValueLocal53, true)
-								end)
-								isRepairingRemoteActive = true
-								ValueLocal47 = ValueLocal53
+								StartFarmRepair(ValueLocal53)
 							end
 							return true
 						end
@@ -41405,11 +41678,7 @@ local function __A0Initialize()
 								end
 								SettingsLocal1["AutoSkillCheck"] = true
 								if HandleAction37(ValueLocal58) then
-									pcall(function()
-										ValueLocal44:FireServer(ValueLocal58, true)
-									end)
-									isRepairingRemoteActive = true
-									ValueLocal47 = ValueLocal58
+									StartFarmRepair(ValueLocal58)
 								else
 									isRepairingRemoteActive = false
 								end
@@ -41514,11 +41783,7 @@ local function __A0Initialize()
 				end
 				if ValueLocal44 then
 					if ValueLocal56 <= 10 then
-						pcall(function()
-							ValueLocal44:FireServer(ValueLocal41, true)
-						end)
-						isRepairingRemoteActive = true
-						ValueLocal47 = ValueLocal41
+						StartFarmRepair(ValueLocal41)
 					else
 						if isRepairingRemoteActive then
 							HandleAction46()
@@ -48315,8 +48580,7 @@ local function __A0Initialize()
 				end
 			end,
 		})
-	end)()
-;
+	end)();
 	(function()
 		local function AliveLocal()
 			return ActiveLoop and not UiLibrary.Destroyed and not __A0Boot.Cancelled
@@ -48673,8 +48937,7 @@ local function __A0Initialize()
 				task.wait(0.5)
 			end
 		end)
-	end)()
-;
+	end)();
 	(function()
 		local AliveLocal = function()
 			return ActiveLoop and not UiLibrary.Destroyed and not __A0Boot.Cancelled
@@ -48700,6 +48963,35 @@ local function __A0Initialize()
 			end,
 			removePlayer = removePlayerESP,
 		})
+		A0Features.FarmPresentation = A0Features.CreateFarmPresentation({
+			player = localPlayer,
+			storage = ReplicatedStorage,
+			settings = SettingsLocal,
+			alive = AliveLocal,
+			clock = tick,
+			yield = task.wait,
+			prompt = fireproximityprompt,
+			sprint = function(Down)
+				local Success = pcall(function()
+					VirtualInputManager:SendKeyEvent(Down, Enum.KeyCode.LeftShift, false, game)
+				end)
+				if not Success then
+					local Key = Down and keypress or keyrelease
+					assert(type(Key) == "function", "Sprint input is unavailable")
+					Key(0xA0)
+				end
+			end,
+			load = function(Animator, Id)
+				local Animation = Instance.new("Animation")
+				Animation.AnimationId = Id
+				local Success, Track = pcall(Animator.LoadAnimation, Animator, Animation)
+				Animation:Destroy()
+				if not Success then
+					error(Track)
+				end
+				return Track
+			end,
+		})
 		A0Features.Navigation = A0Features.CreateNavigation({
 			character = function()
 				return localPlayer.Character
@@ -48709,6 +49001,9 @@ local function __A0Initialize()
 			clock = tick,
 			yield = task.wait,
 			pathfinding = game:GetService("PathfindingService"),
+			movement = function(Enabled)
+				A0Features.FarmPresentation:SetRunning(Enabled)
+			end,
 		})
 		local WorldLocal, Nav = A0Features.World, A0Features.Navigation
 		local function SendTrapInput()
@@ -48761,6 +49056,7 @@ local function __A0Initialize()
 		end
 		registerConnection(localPlayer.CharacterRemoving:Connect(function()
 			Nav:Cancel()
+			A0Features.FarmPresentation:Reset()
 		end))
 		registerConnection(localPlayer:GetPropertyChangedSignal("Team"):Connect(function()
 			Nav:Cancel()
@@ -48814,6 +49110,11 @@ local function __A0Initialize()
 				SettingsLocal1[GroupLocal][KeyLocal] = ValueLocal40
 			else
 				SettingsLocal1[PathLocal] = ValueLocal40
+			end
+			if PathLocal == "FarmRun" or PathLocal == "FarmRunSpeed" or PathLocal == "SafeWalkSpeed" then
+				Nav:Cancel()
+			elseif PathLocal == "FarmRepairAnimation" then
+				A0Features.FarmPresentation:StopRepair()
 			end
 			pcall(saveSettings)
 		end
@@ -48910,7 +49211,10 @@ local function __A0Initialize()
 			end,
 		})
 		controlRegistry.AutoFarmMethod = __decorateControl(ModeLocal, "Dropdown")
+		ToggleLocal(Farm, "FarmRun", "Run While Pathfinding")
+		SliderLocal(Farm, "FarmRunSpeed", "Pathfinding Run Speed", 16, 30)
 		SliderLocal(Farm, "SafeWalkSpeed", "Pathfinding Walk Speed", 14, 24)
+		ToggleLocal(Farm, "FarmRepairAnimation", "Repair Animation")
 		local PumpkinToggle
 		local function StopOtherFarms()
 			Nav:Cancel()
@@ -49178,6 +49482,7 @@ local function __A0Initialize()
 		UiLibrary:OnUnload(function()
 			A0Features.Trap:Destroy()
 			Nav:Destroy()
+			A0Features.FarmPresentation:Destroy()
 			WorldLocal:Destroy()
 			for Object in pairs(ActiveESP.Pumpkins) do
 				removeModelESP(Object, "Pumpkins")
