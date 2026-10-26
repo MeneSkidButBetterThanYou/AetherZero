@@ -430,6 +430,9 @@ local function A0InterfaceFactory()
 						local Thread = coroutine.running()
 						CallbackWorkers[Thread] = CallbackLocal
 						__A0Boot.Workers[Thread] = os.clock()
+						if Startup then
+							__A0Boot.Jobs[Thread] = { Label = tostring(LabelLocal), StartedAt = os.clock() }
+						end
 						if PendingCallbacks[CallbackLocal] then
 							Args = PendingCallbacks[CallbackLocal]
 							PendingCallbacks[CallbackLocal] = nil
@@ -454,6 +457,7 @@ local function A0InterfaceFactory()
 						Release()
 						CallbackWorkers[Thread] = nil
 						__A0Boot.Workers[Thread] = nil
+						__A0Boot.Jobs[Thread] = nil
 					end
 					local SuccessLocal, ErrorLocal = pcall(function()
 						DispatchCallback(Invoke)
@@ -1838,6 +1842,15 @@ local function A0InterfaceFactory()
 							InstanceLocal:SetAttribute(OriginalKey, CurrentLocal)
 							ApplyLocalizedInstance(InstanceLocal)
 						end))
+					else
+						local Cached = LocalizedTranslations[InstanceLocal]
+						local Editable = InstanceLocal:IsA("TextBox")
+						local Source =
+							InstanceLocal:GetAttribute(Editable and "VFOriginalPlaceholder" or "VFOriginalText")
+						local Property = Editable and "PlaceholderText" or "Text"
+						if Cached and Cached.Source == Source and Cached[self.Language] == InstanceLocal[Property] then
+							return
+						end
 					end
 					ApplyLocalizedInstance(InstanceLocal)
 				end
@@ -2141,7 +2154,7 @@ local function A0InterfaceFactory()
 					local Base = InfoLocal or EASE
 					local SpeedLocal = math.clamp(tonumber(Library.TweenSpeed) or 1, 0.35, 2.5)
 					local Selected
-					if Library.ReducedMotion then
+					if Library.ReducedMotion or __A0Boot.Running then
 						Selected = TweenInfo.new(0.001)
 					else
 						Selected = TweenInfo.new(
@@ -12887,6 +12900,10 @@ local __A0Boot = (function()
 		Motion = {},
 		StartedAt = os.clock(),
 		PhaseAt = os.clock(),
+		LastProgressAt = os.clock(),
+		CurrentPhase = "Preparing startup",
+		Jobs = setmetatable({}, { __mode = "k" }),
+		NextReportAt = 12,
 	}
 	_G.__A0ActiveBoot = Boot
 	local RunLocal = game:GetService("RunService")
@@ -12935,6 +12952,7 @@ local __A0Boot = (function()
 			return
 		end
 		self.Completed[KeyLocal] = true
+		self.LastProgressAt = os.clock()
 		self.CompletedCount += 1
 		if self.Progress then
 			if self.ProgressTween then
@@ -13024,11 +13042,13 @@ local __A0Boot = (function()
 			end
 			return
 		end
-		while os.clock() - self.FrameStarted >= self.Slice do
+		if os.clock() - self.FrameStarted >= self.Slice then
 			RunLocal.Heartbeat:Wait()
 			self:Check()
+			self.FrameStarted = os.clock()
 		end
 		self.Workers[Worker] = os.clock()
+		self.LastProgressAt = self.Workers[Worker]
 	end
 	function Boot:New(Class, ParentLocal)
 		if self.Running then
@@ -13060,9 +13080,35 @@ local __A0Boot = (function()
 		end
 		return true
 	end
+	function Boot:Describe()
+		local Labels = {}
+		for _, Job in pairs(self.Jobs) do
+			Labels[#Labels + 1] = string.format("%s (%.1fs)", Job.Label, os.clock() - Job.StartedAt)
+		end
+		table.sort(Labels)
+		local Missing = {}
+		for _, Key in ipairs(self.Required) do
+			if not self.Completed[Key] then
+				Missing[#Missing + 1] = Key
+			end
+		end
+		return string.format(
+			"Phase: %s | Pending: %d | Jobs: %s | Missing: %s",
+			self.CurrentPhase,
+			self.Pending,
+			table.concat(Labels, "; "),
+			table.concat(Missing, ", ")
+		)
+	end
 	function Boot:Phase(TextLocal)
 		self:Check()
+		self.CurrentPhase = TextLocal
 		self.PhaseAt = os.clock()
+		self.LastProgressAt = self.PhaseAt
+		local Job = self.Jobs[coroutine.running()]
+		if Job then
+			Job.Label = TextLocal
+		end
 		if self.Status then
 			self.Status.Text = "Aether Zero - " .. self:Text(TextLocal)
 		end
@@ -13101,6 +13147,7 @@ local __A0Boot = (function()
 		task.spawn(function()
 			local Worker = coroutine.running()
 			self.Workers[Worker] = os.clock()
+			self.Jobs[Worker] = { Label = LabelLocal, StartedAt = os.clock() }
 			local SuccessLocal, MessageLocal = xpcall(function()
 				self:Check()
 				self:Phase(LabelLocal)
@@ -13108,6 +13155,7 @@ local __A0Boot = (function()
 				self:Check()
 			end, debug.traceback)
 			self.Workers[Worker] = nil
+			self.Jobs[Worker] = nil
 			self.Pending -= 1
 			if not SuccessLocal then
 				self:Fail(MessageLocal)
@@ -13193,12 +13241,14 @@ local __A0Boot = (function()
 	function Boot:Run(Initializer)
 		local Worker = coroutine.running()
 		self.Workers[Worker] = os.clock()
+		self.Jobs[Worker] = { Label = "Preparing functions", StartedAt = os.clock() }
 		local SuccessLocal, MessageLocal = xpcall(function()
 			self:Phase("Preparing functions…")
 			Initializer()
 			self:Complete()
 		end, debug.traceback)
 		self.Workers[Worker] = nil
+		self.Jobs[Worker] = nil
 		if not SuccessLocal then
 			self:Fail(MessageLocal)
 		end
@@ -13404,13 +13454,22 @@ local __A0Boot = (function()
 	Boot.Spin:Play()
 
 	task.spawn(function()
-		local Messages =
-			{ "Preparing behind the scenes", "Wiring controls and saved settings", "Validating tabs before reveal" }
 		while Boot.Gui and not Boot.Cancelled and not Boot.Failed do
 			local Elapsed = os.clock() - Boot.StartedAt
 			if Boot.Detail then
-				local HintLocal = Boot.Ready and "READY" or Messages[(math.floor(Elapsed / 4) % #Messages) + 1]
+				local HintLocal = Boot.Ready and "READY" or Boot.CurrentPhase
 				Boot.Detail.Text = string.format("AETHER ZERO  /  %s  /  %.1fs", Boot:Text(HintLocal), Elapsed)
+			end
+			if Boot.Running and Elapsed >= Boot.NextReportAt then
+				Boot.NextReportAt = Elapsed + 15
+				warn("[A0 loading] " .. Boot:Describe())
+			end
+			if Boot.Running and os.clock() - Boot.LastProgressAt >= 45 then
+				Boot:Fail("No startup progress for 45 seconds. " .. Boot:Describe())
+				if Boot.Status then
+					Boot.Status.Text = "Loading stopped: " .. Boot.CurrentPhase .. ". Check the console."
+				end
+				break
 			end
 			task.wait(0.25)
 		end
@@ -13440,8 +13499,10 @@ local function __A0Initialize()
 	})
 
 	__A0Boot:Budget()
+	__A0Boot:Phase("Preparing UI library")
 	local A0Interface = A0LoadInterface("VD", { Boot = __A0Boot, ReleaseResource = ReleaseResource })
 	local UiLibrary = A0Interface.Library
+	__A0Boot:Phase("Reading game settings")
 
 	local ActiveLoop = true
 	__A0Boot:Budget()
